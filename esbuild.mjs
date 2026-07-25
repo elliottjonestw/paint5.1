@@ -1,7 +1,13 @@
 import * as esbuild from 'esbuild';
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 
 const serve = process.argv.includes('--serve');
 const watch = process.argv.includes('--watch') || serve;
+// --site assembles the static browser build published to GitHub Pages. It needs
+// no Electron output: bridge.ts feature-detects window.paintBridge and falls
+// back to browser file pickers, downloads, and the async Clipboard API.
+const site = process.argv.includes('--site');
+const SITE_DIR = 'site';
 
 const rendererOpts = {
   entryPoints: ['src/app.ts'],
@@ -52,6 +58,17 @@ if (serve) {
   await testCtx.watch();
   const { hosts, port } = await ctx.serve({ servedir: '.', port: 5173 });
   console.log(`\n  Paint (browser build) running at http://localhost:${port}/\n`);
+} else if (site) {
+  await rm(SITE_DIR, { recursive: true, force: true });
+  await mkdir(`${SITE_DIR}/dist`, { recursive: true });
+  await esbuild.build({ ...rendererOpts, outfile: `${SITE_DIR}/dist/renderer.js` });
+  // index.html loads styles.css and dist/renderer.js by relative path, so the
+  // same tree works at a domain root or under a /<repo>/ project path.
+  await cp('index.html', `${SITE_DIR}/index.html`);
+  await cp('styles.css', `${SITE_DIR}/styles.css`);
+  // Keeps Pages from treating dist/ and friends as Jekyll input.
+  await writeFile(`${SITE_DIR}/.nojekyll`, '');
+  console.log(`\n  Static site written to ${SITE_DIR}/\n`);
 } else {
   await Promise.all([
     esbuild.build(rendererOpts),

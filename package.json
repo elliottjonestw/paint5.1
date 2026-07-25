@@ -8,6 +8,7 @@
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node esbuild.mjs",
+    "build:site": "node esbuild.mjs --site",
     "dev": "node esbuild.mjs --serve",
     "start": "node esbuild.mjs && electron .",
     "dist": "node esbuild.mjs && electron-builder --mac",

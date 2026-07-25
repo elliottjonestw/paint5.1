@@ -7,6 +7,10 @@
 Not a theme. Not a tribute. A reimplementation that reproduces the original's
 behavior, its limitations, and its quirks — down to the three-level undo.
 
+### [▶ Open it in your browser](https://elliottjonestw.github.io/paint5.1/)
+
+*No install, no sign-in — the full editor, not a demo.*
+
 ![Paint 5.1 running on macOS](docs/screenshot.png)
 
 </div>
@@ -57,6 +61,9 @@ npm install
 ```
 
 ### Try it in a browser
+
+The hosted build lives at **https://elliottjonestw.github.io/paint5.1/** — nothing to
+install. To run the same thing locally:
 
 ```bash
 npm run dev
@@ -111,6 +118,26 @@ launch:
 
 To build for 32-bit Windows or ARM64, add the arch to the `win.target` entry in
 `package.json`; x64 is the default.
+
+### Publish it to GitHub Pages
+
+```bash
+npm run build:site     # → site/
+```
+
+That assembles the whole hosted app — `index.html`, `styles.css`, and
+`site/dist/renderer.js` — into `site/`, about 200 KB with no Electron output and no
+runtime dependencies. Every path in `index.html` is relative and every icon is an inline
+data URI, so the same tree works unchanged at a domain root or under a
+`/<repo>/` project path.
+
+`.github/workflows/pages.yml` runs that build on every push to `main` and deploys the
+result, so nothing generated is ever committed (`site/` is gitignored alongside `dist/`).
+It skips Electron's binary download, since the site build only needs esbuild.
+
+Enabling it on a fork is one setting: **Settings → Pages → Build and deployment →
+Source → GitHub Actions**. The next push to `main` publishes; you can also trigger a
+deploy by hand from the **Actions** tab via *Run workflow*.
 
 ---
 
@@ -362,6 +389,8 @@ ImageIO, at the right dimensions and orientation.
 | `src/io/gif.ts` | Pure-JS GIF codec (LZW + median-cut quantizer) |
 | `electron/` | Main process and preload — window, native panels, clipboard, menu, print |
 | `tests/` | Self-test harness and sample-file generator |
+| `esbuild.mjs` | The whole build: renderer, Electron main/preload, dev server, `--site` |
+| `.github/workflows/pages.yml` | Builds `site/` and deploys it to GitHub Pages on push to `main` |
 
 Built with esbuild. No UI framework — the chrome is small, static, and pixel-positioned,
 where a virtual DOM buys nothing and gets in the way of exact layout.
