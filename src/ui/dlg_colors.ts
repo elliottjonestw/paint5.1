@@ -240,9 +240,11 @@ export async function editColorsDialog(
 
   // field/lum pointer handling
   const fieldPick = (e: PointerEvent) => {
+    // Measured through the rect rather than assuming 1:1, so picking still
+    // lands where the finger is when the dialog is scaled down to fit a phone.
     const r = field.getBoundingClientRect();
-    const x = Math.max(0, Math.min(FIELD_W - 1, e.clientX - r.left));
-    const y = Math.max(0, Math.min(FIELD_H - 1, e.clientY - r.top));
+    const x = Math.max(0, Math.min(FIELD_W - 1, (e.clientX - r.left) * (FIELD_W / r.width)));
+    const y = Math.max(0, Math.min(FIELD_H - 1, (e.clientY - r.top) * (FIELD_H / r.height)));
     setHsl({
       h: Math.round(x / (FIELD_W - 1) * 239),
       s: Math.round((1 - y / (FIELD_H - 1)) * 240),
@@ -256,7 +258,7 @@ export async function editColorsDialog(
 
   const lumPick = (e: PointerEvent) => {
     const r = lum.getBoundingClientRect();
-    const y = Math.max(0, Math.min(LUM_H - 1, e.clientY - r.top));
+    const y = Math.max(0, Math.min(LUM_H - 1, (e.clientY - r.top) * (LUM_H / r.height)));
     setHsl({ h: hsl.h, s: hsl.s, l: Math.round((1 - y / (LUM_H - 1)) * 240) });
   };
   let lumDown = false;

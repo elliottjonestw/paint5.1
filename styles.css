@@ -495,3 +495,59 @@ body {
   display: none;
 }
 #viewbitmap canvas { image-rendering: pixelated; position: absolute; left: 0; top: 0; }
+
+/* ===== Touch (phones and tablets) =====
+   Applied only when a coarse pointer is driving; see platform/uiscale.ts, which
+   also magnifies the whole window through the viewport meta. Nothing here
+   restyles a control — it fixes what magnification alone cannot: gestures,
+   mouse-sized hit targets, and the two strips that no longer fit side to side. */
+
+html.touch-ui, html.touch-ui body { height: 100dvh; }
+
+.touch-ui, .touch-ui * { -webkit-tap-highlight-color: transparent; }
+
+/* No double-tap zoom anywhere (the Polygon and Curve tools need real
+   double-clicks), and no browser gestures at all over the bitmap: one finger
+   draws, two fingers pan the workspace. */
+.touch-ui #app { touch-action: manipulation; }
+.touch-ui #overlay-canvas { touch-action: none; }
+
+/* The canvas resize grips are 5px of mouse target. Pad them out invisibly. */
+.touch-ui .grip::after {
+  content: "";
+  position: absolute;
+  left: -10px; top: -10px; right: -10px; bottom: -10px;
+}
+
+/* The tool box is taller than a phone held sideways. */
+.touch-ui #leftpanel {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  touch-action: pan-y;
+}
+.touch-ui #leftpanel::-webkit-scrollbar { width: 0; height: 0; }
+
+/* The palette is 482px of fixed grid; a phone window is not. Swipe it sideways
+   rather than reflowing it into rows Paint never had. */
+.touch-ui #colorrow {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  padding-right: 4px;
+}
+.touch-ui #colorrow::-webkit-scrollbar { width: 0; height: 0; }
+.touch-ui #colorbox { flex: none; }
+
+/* Tapping the indicator arms the background color: the swatch that sits in
+   front is the one a stroke paints with, which is what it has always meant. */
+.touch-ui #swatch-indicator.secondary #swatch-fg { left: 11px; top: 12px; z-index: 1; }
+.touch-ui #swatch-indicator.secondary #swatch-bg { left: 4px; top: 4px; z-index: 2; }
+
+/* Leave the hint pane something to be squeezed into. */
+.touch-ui .sb-fixed { width: 62px; }
+
+/* 2px off each title keeps all six menus on the bar down to the narrowest
+   phone; losing "Help" off the right edge would be authentic and useless. */
+.touch-ui .menu-title { padding-left: 5px; padding-right: 5px; }

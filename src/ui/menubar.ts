@@ -1,6 +1,8 @@
 // Classic in-window menu bar: square popups, 1px borders, drop shadows,
 // underlined access keys, checkmarks/bullets, right-aligned accelerator text.
 
+import { isTouchUI } from '../platform/uiscale';
+
 export interface MenuItem {
   label?: string;              // '&' marks the access key
   id?: string;
@@ -78,6 +80,11 @@ export class MenuBar {
     popup.style.top = `${this.el.offsetTop + this.el.offsetHeight - 1}px`;
     this.el.appendChild(popup);
     this.popups.push(popup);
+    // A phone-width window is narrower than "Colors" is far to the right.
+    if (isTouchUI) {
+      const max = document.documentElement.clientWidth - popup.offsetWidth - 2;
+      popup.style.left = `${Math.max(2, Math.min(t.offsetLeft, max))}px`;
+    }
   }
 
   private buildPopup(items: MenuItem[]): HTMLDivElement {
@@ -144,6 +151,11 @@ export class MenuBar {
           sub.style.left = `${popup.offsetLeft + popup.offsetWidth - 3}px`;
           sub.style.top = `${popup.offsetTop + row.offsetTop - 2}px`;
           this.el.appendChild(sub);
+          // Out of room to the right: open it to the left, as Windows does.
+          if (isTouchUI &&
+              sub.offsetLeft + sub.offsetWidth > document.documentElement.clientWidth - 2) {
+            sub.style.left = `${Math.max(2, popup.offsetLeft - sub.offsetWidth + 3)}px`;
+          }
           this.popups.push(sub);
           openSub = { el: sub, item: row };
         }

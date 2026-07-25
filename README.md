@@ -70,6 +70,24 @@ bridge; with none present it falls back to `<input type="file">` for opening, do
 links for saving, and the async Clipboard API for cut/copy/paste. The whole editor
 works this way — it is not a degraded preview.
 
+### On a phone or tablet
+
+The same page, and deliberately the same *window*: no mobile layout, no hamburger, no
+reflowed panels. A coarse pointer only changes the **scale** the window is drawn at —
+1.5× on a phone, 1.25× on a tablet — applied through the viewport meta so a 25px tool
+button ends up the physical size it has on a desktop monitor. What you get is a Paint
+window resized down to phone size, with the same tool box, the same menu bar, and the
+same 482px palette, which is why the palette is swiped sideways rather than wrapped.
+
+| Gesture | Does |
+|---|---|
+| One finger on the bitmap | Draws (the mouse's left button) |
+| Two fingers on the bitmap | Pans the workspace; whatever the first finger had started is abandoned |
+| Tap the fg/bg swatch box | Arms the background color — the swatch in front is what a stroke paints with, which is what that control has always meant |
+| Swipe the palette / tool box | Reaches the custom colors, and the tools below the fold on a phone held sideways |
+
+`?touch=1` forces the touch layout on a desktop browser, to look it over.
+
 ### Run it as a desktop app
 
 ```bash
@@ -224,6 +242,32 @@ On Windows this deviation mostly disappears: you get a native Windows frame arou
 Windows chrome. Electron's own menu bar is suppressed there so the in-window menu bar is
 the only one, which is how XP actually looked — on macOS the native menu is additionally
 registered so ⌘-shortcuts work at the OS level.
+</details>
+
+<details>
+<summary><b>A finger is not a mouse, so touch adds four gestures and nothing else</b></summary>
+
+Paint assumed two buttons, hover, and a 5px resize grip. A touchscreen has none of
+those, and the answer everywhere was the smallest one that leaves the window alone
+(`src/platform/uiscale.ts`, and the `.touch-ui` block at the end of `styles.css`):
+
+- **The second button** became the fg/bg swatch box: tap it and the background swatch
+  moves to the front, where the front swatch has always meant "this is what you paint
+  with". Palette taps set that color too. Nothing else about the control changes.
+- **Scrolling the workspace** became a two-finger pan, because one finger is already
+  the pen — the overlay takes `touch-action: none`, so a stroke is never stolen
+  mid-drag by the browser deciding it was a scroll. A second finger landing mid-stroke
+  cancels that stroke rather than committing half of it.
+- **The resize grips** keep their 5px look and get 10px of invisible padding.
+- **The palette and the tool box** scroll rather than reflow. A phone window is
+  narrower than 482px of fixed palette grid and, held sideways, shorter than 16 tools.
+
+Dialogs are laid out at their designed size and then *scaled* to fit — a shrunken XP
+dialog still reads as an XP dialog, a stacked one does not. The two concessions that do
+change measurements are 2px off each menu title's padding (so all six menus stay on the
+bar on the narrowest phones) and 62px status-bar panes instead of 100px (so the hint
+pane has room to say anything). Magnification is skipped entirely for a mouse: the
+desktop and Electron builds render exactly as they did before any of this existed.
 </details>
 
 <details>
@@ -383,6 +427,7 @@ ImageIO, at the right dimensions and orientation.
 | `src/ui/` | Tool box, options pane, color box, status bar, menus, dialogs, canvas view |
 | `src/io/bmp.ts` | Hand-rolled BMP reader/writer (1/4/8/24-bit, `DataView`) |
 | `src/io/gif.ts` | Pure-JS GIF codec (LZW + median-cut quantizer) |
+| `src/platform/` | Electron bridge detection, and the touch scale (`uiscale.ts`) |
 | `electron/` | Main process and preload — window, native panels, clipboard, menu, print |
 | `tests/` | Self-test harness and sample-file generator |
 | `esbuild.mjs` | The whole build: renderer, Electron main/preload, dev server, `--site` |

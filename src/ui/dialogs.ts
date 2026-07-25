@@ -2,6 +2,7 @@
 // dialogs anywhere in the app are the file open/save panels.
 
 import { MSG_ICONS } from './icons';
+import { isTouchUI } from '../platform/uiscale';
 
 export interface DialogButton {
   label: string;
@@ -82,18 +83,38 @@ export class DialogHost {
       this.stack.push(shade);
 
       // center, then allow dragging by the title bar
-      const cw = document.documentElement.clientWidth;
-      const ch = document.documentElement.clientHeight;
-      dlg.style.left = `${Math.max(10, Math.round((cw - dlg.offsetWidth) / 2))}px`;
-      dlg.style.top = `${Math.max(10, Math.round((ch - dlg.offsetHeight) / 3))}px`;
+      let scale = 1;
+      let moved = false;
+      const place = () => {
+        const cw = document.documentElement.clientWidth;
+        const ch = document.documentElement.clientHeight;
+        // Dialogs are laid out at their designed size and then shrunk to fit a
+        // phone, rather than reflowed: a scaled-down XP dialog still reads as
+        // an XP dialog, a stacked one doesn't.
+        scale = isTouchUI
+          ? Math.min(1, (cw - 8) / dlg.offsetWidth, (ch - 8) / dlg.offsetHeight)
+          : 1;
+        dlg.style.transformOrigin = '0 0';
+        dlg.style.transform = scale < 1 ? `scale(${scale})` : '';
+        if (moved) return;
+        const edge = isTouchUI ? 4 : 10;
+        dlg.style.left = `${Math.max(edge, Math.round((cw - dlg.offsetWidth * scale) / 2))}px`;
+        dlg.style.top = `${Math.max(edge, Math.round((ch - dlg.offsetHeight * scale) / 3))}px`;
+      };
+      place();
+      // Edit Colors grows when "Define Custom Colors" expands it.
+      if (isTouchUI) new ResizeObserver(() => place()).observe(dlg);
       let drag: { x: number; y: number; l: number; t: number } | null = null;
       tb.addEventListener('pointerdown', e => {
         if (e.target === close) return;
         drag = { x: e.clientX, y: e.clientY, l: dlg.offsetLeft, t: dlg.offsetTop };
+        moved = true;
         tb.setPointerCapture(e.pointerId);
       });
       tb.addEventListener('pointermove', e => {
         if (!drag) return;
+        // left/top stay in the parent's (unscaled) space, which is the space
+        // clientX/Y are in — the scale only shrinks the box below that corner.
         dlg.style.left = `${drag.l + e.clientX - drag.x}px`;
         dlg.style.top = `${drag.t + e.clientY - drag.y}px`;
       });

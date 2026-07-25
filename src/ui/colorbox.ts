@@ -3,6 +3,7 @@
 // double-click opens Edit Colors for that cell.
 
 import { DEFAULT_COLORS, hexToU32 } from '../core/color';
+import { isTouchUI } from '../platform/uiscale';
 
 export class Palette {
   fgHex = '#000000';
@@ -10,6 +11,12 @@ export class Palette {
   colors: string[] = [...DEFAULT_COLORS];
   custom: string[] = new Array(28).fill('#FFFFFF');
   onChange: (() => void) | null = null;
+  /**
+   * Touch has no second mouse button, so the swatch indicator arms the
+   * background color instead: whichever swatch sits in front is what a stroke
+   * paints with, which is what the indicator has always meant.
+   */
+  secondary = false;
 
   get fg(): number { return hexToU32(this.fgHex); }
   get bg(): number { return hexToU32(this.bgHex); }
@@ -46,6 +53,13 @@ export class ColorBox {
     };
     this.fgSwatch = mk('swatch-fg');
     this.bgSwatch = mk('swatch-bg');
+    if (isTouchUI) {
+      indicator.addEventListener('pointerdown', () => {
+        palette.secondary = !palette.secondary;
+        this.refresh();
+      });
+    }
+    this.indicator = indicator;
     el.appendChild(indicator);
 
     const makeGrid = (colors: string[], isCustom: boolean) => {
@@ -60,7 +74,7 @@ export class ColorBox {
         c.appendChild(inner);
         c.addEventListener('pointerdown', e => {
           const current = (isCustom ? palette.custom : palette.colors)[i];
-          if (e.button === 2 || e.ctrlKey) palette.setBg(current);
+          if (e.button === 2 || e.ctrlKey || palette.secondary) palette.setBg(current);
           else palette.setFg(current);
         });
         c.addEventListener('dblclick', () => onEditCell(i, isCustom));
@@ -75,10 +89,12 @@ export class ColorBox {
   }
 
   private grids: HTMLDivElement[] = [];
+  private indicator!: HTMLDivElement;
 
   refresh(): void {
     this.fgSwatch.style.background = this.palette.fgHex;
     this.bgSwatch.style.background = this.palette.bgHex;
+    this.indicator.classList.toggle('secondary', this.palette.secondary);
     const paint = (grid: HTMLDivElement, colors: string[]) => {
       const cells = grid.querySelectorAll<HTMLDivElement>('.cc-inner');
       cells.forEach((cell, i) => { cell.style.background = colors[i]; });

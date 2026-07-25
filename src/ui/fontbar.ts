@@ -1,5 +1,7 @@
 // The floating "Fonts" toolbar shown while a text frame is active.
 
+import { isTouchUI } from '../platform/uiscale';
+
 export interface TextStyle {
   family: string;
   sizePt: number;
@@ -101,7 +103,16 @@ export class FontBar {
 
   get visible(): boolean { return this.el.classList.contains('visible'); }
 
-  show(): void { this.el.classList.add('visible'); }
+  show(): void {
+    this.el.classList.add('visible');
+    // It was last dropped where a desktop window had room for it.
+    if (isTouchUI) {
+      const maxL = document.documentElement.clientWidth - this.el.offsetWidth - 2;
+      const maxT = document.documentElement.clientHeight - this.el.offsetHeight - 2;
+      this.el.style.left = `${Math.max(2, Math.min(this.el.offsetLeft, maxL))}px`;
+      this.el.style.top = `${Math.max(2, Math.min(this.el.offsetTop, maxT))}px`;
+    }
+  }
   hide(): void { this.el.classList.remove('visible'); }
 
   /** CSS font shorthand at a given px size. */

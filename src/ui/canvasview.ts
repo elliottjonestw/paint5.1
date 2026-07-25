@@ -6,6 +6,7 @@
 
 import { PixelBuffer } from '../core/pixelbuffer';
 import { PointerInfo } from '../tools/tool';
+import { deviceScale } from '../platform/uiscale';
 
 export interface ViewDelegate {
   buffer(): PixelBuffer;
@@ -23,6 +24,10 @@ export interface ViewDelegate {
   onPointerHover(p: PointerInfo | null): void;   // status bar position
   onDblClick(p: PointerInfo): void;
   onCanvasResize(w: number, h: number): void;    // grip drag finished
+  /** A second finger arrived: abandon whatever the first one was drawing. */
+  onGestureCancel(): void;
+  /** Touch draws with the background color (the color box's swap is armed). */
+  touchSecondary(): boolean;
 }
 
 const MARGIN = 3;
@@ -44,6 +49,9 @@ export class CanvasView {
   private antsPhase = 0;
   private antsTimer: number;
   private dragButton: 'L' | 'R' | null = null;
+  /** Live touch points, for the two-finger pan gesture. */
+  private touches = new Map<number, { x: number; y: number }>();
+  private pan: { x: number; y: number; sl: number; st: number } | null = null;
   private gripDrag: {
     grip: 'se' | 'e' | 's';
     /** Latest previewed size, used when the drag ends without a usable event. */
@@ -193,7 +201,7 @@ export class CanvasView {
 
   render(): void {
     const buf = this.delegate.buffer();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = deviceScale();
     const viewW = this.workspace.clientWidth;
     const viewH = this.workspace.clientHeight;
     if (viewW === 0 || viewH === 0) return;
@@ -272,7 +280,7 @@ export class CanvasView {
 
   renderOverlay(): void {
     const ctx = this.octx;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = deviceScale();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -367,9 +375,39 @@ export class CanvasView {
 
   /* ---------- pointer routing ---------- */
 
+  /**
+   * One finger draws, so the workspace can never be flick-scrolled the way a
+   * web page is (the overlay sets touch-action: none). Two fingers pan it
+   * instead, which is the only gesture the mouse build has no equivalent for.
+   */
+  private midpoint(): { x: number; y: number } {
+    let x = 0, y = 0;
+    for (const p of this.touches.values()) { x += p.x; y += p.y; }
+    const n = Math.max(1, this.touches.size);
+    return { x: x / n, y: y / n };
+  }
+
+  private beginPan(): void {
+    if (this.dragButton) {
+      this.dragButton = null;
+      this.delegate.onGestureCancel();
+    }
+    const m = this.midpoint();
+    this.pan = { x: m.x, y: m.y, sl: this.workspace.scrollLeft, st: this.workspace.scrollTop };
+  }
+
   private pointerDown(e: PointerEvent): void {
+    if (e.pointerType !== 'mouse') {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touches.size > 1) {
+        this.beginPan();
+        return;
+      }
+      if (this.pan) return;
+    }
     if (e.button !== 0 && e.button !== 2) return;
-    const button: 'L' | 'R' = (e.button === 2 || e.ctrlKey) ? 'R' : 'L';
+    const secondary = e.pointerType !== 'mouse' && this.delegate.touchSecondary();
+    const button: 'L' | 'R' = (e.button === 2 || e.ctrlKey || secondary) ? 'R' : 'L';
     this.dragButton = button;
     // Capture keeps drags alive outside the canvas, but must never be able to
     // swallow the stroke itself if the pointer is no longer capturable.
@@ -382,12 +420,29 @@ export class CanvasView {
   }
 
   private pointerMove(e: PointerEvent): void {
+    if (e.pointerType !== 'mouse' && this.touches.has(e.pointerId)) {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    if (this.pan) {
+      const m = this.midpoint();
+      this.workspace.scrollLeft = this.pan.sl + (this.pan.x - m.x);
+      this.workspace.scrollTop = this.pan.st + (this.pan.y - m.y);
+      return;
+    }
     const p = this.info(e, this.dragButton ?? 'L');
     this.delegate.onPointerHover(p);
     this.delegate.onPointerMove(p);
   }
 
   private pointerUp(e: PointerEvent): void {
+    if (e.pointerType !== 'mouse') this.touches.delete(e.pointerId);
+    if (this.pan) {
+      // Lifting one of two fingers must not hand the stroke to the other one;
+      // stay in pan mode until the last finger goes, re-basing so it doesn't jump.
+      if (this.touches.size === 0) this.pan = null;
+      else this.beginPan();
+      return;
+    }
     if (!this.dragButton) return;
     const p = this.info(e, this.dragButton);
     this.dragButton = null;

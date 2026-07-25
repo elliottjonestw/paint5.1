@@ -678,6 +678,8 @@ function makeTestImage(w: number, h: number, paletteSize: number): PixelBuffer {
     onPointerUp: () => { /* none */ },
     onPointerHover: () => { /* none */ },
     onDblClick: () => { /* none */ },
+    onGestureCancel: () => { /* none */ },
+    touchSecondary: () => false,
     onCanvasResize: (w, h) => {
       resizeCalls.push({ w, h });
       buffer = PixelBuffer.resized(buffer, w, h);

@@ -35,6 +35,7 @@ import {
 } from './io/fileio';
 import { clipboardRead, clipboardWrite } from './io/clipboard';
 import { bridge, isElectron } from './platform/bridge';
+import { initTouchUI, isTouchUI, deviceScale } from './platform/uiscale';
 
 const DEFAULT_W = 512;
 const DEFAULT_H = 384;
@@ -313,6 +314,20 @@ class App implements ToolContext, ViewDelegate, MenuState {
     // Destructive: crop, or extend with white. Never interpolate.
     this.replaceBuffer(PixelBuffer.resized(this.doc.buffer, w, h));
   }
+
+  /**
+   * A two-finger pan started mid-stroke. Escape is what every tool already
+   * understands as "forget this drag"; tools without an opinion just lose the
+   * pixels the drag had drawn so far.
+   */
+  onGestureCancel(): void {
+    const tool = this.tools.get(this.toolId)!;
+    const esc = new KeyboardEvent('keydown', { key: 'Escape' });
+    if (!tool.onKey?.(this, esc)) this.cancelStroke();
+    this.repaint();
+  }
+
+  touchSecondary(): boolean { return isTouchUI && this.palette.secondary; }
 
   /* ================= MenuState ================= */
 
@@ -1116,7 +1131,7 @@ class App implements ToolContext, ViewDelegate, MenuState {
     el.id = 'viewbitmap';
     el.style.display = 'block';
     const cv = document.createElement('canvas');
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = deviceScale();
     const buf = this.doc.buffer;
     cv.width = Math.round(buf.width * dpr);
     cv.height = Math.round(buf.height * dpr);
@@ -1147,4 +1162,6 @@ class App implements ToolContext, ViewDelegate, MenuState {
 }
 
 // Kick off once the DOM is parsed (the bundle is loaded at the end of <body>).
+// The touch scale is applied first so the app measures an already-sized window.
+initTouchUI();
 new App();
