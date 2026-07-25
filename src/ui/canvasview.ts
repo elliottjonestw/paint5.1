@@ -44,7 +44,17 @@ export class CanvasView {
   private antsPhase = 0;
   private antsTimer: number;
   private dragButton: 'L' | 'R' | null = null;
-  private gripDrag: { grip: 'se' | 'e' | 's'; } | null = null;
+  private gripDrag: {
+    grip: 'se' | 'e' | 's';
+    /** Latest previewed size, used when the drag ends without a usable event. */
+    last: { w: number; h: number } | null;
+  } | null = null;
+  private gripListeners: {
+    onMove: (e: PointerEvent) => void;
+    onUp: (e: PointerEvent) => void;
+    onCancel: () => void;
+    onBlur: () => void;
+  } | null = null;
   private thumb: { box: HTMLDivElement; canvas: HTMLCanvasElement } | null = null;
   thumbnailVisible = false;
 
@@ -386,32 +396,70 @@ export class CanvasView {
 
   /* ---------- resize grips ---------- */
 
+  /**
+   * A grip is a 5px target and the drag routinely ends far away from it — past
+   * the workspace edge, or even outside the window. Tracking the drag on the
+   * grip element alone means a missed pointerup strands the dotted preview
+   * on screen and never applies the resize, so the whole gesture is tracked on
+   * `window` instead, with several independent ways to end it.
+   */
   private makeGrip(which: 'se' | 'e' | 's'): HTMLDivElement {
     const g = document.createElement('div');
     g.className = `grip grip-${which}`;
     this.extent.appendChild(g);
+
+    const onMove = (e: PointerEvent) => {
+      if (!this.gripDrag) return;
+      // The button was released somewhere we never heard about (most often
+      // outside the window). Treat the first button-less move as the release.
+      if (e.buttons === 0) {
+        this.finishGripDrag(e, true);
+        return;
+      }
+      this.updateResizePreview(e);
+    };
+    const onUp = (e: PointerEvent) => this.finishGripDrag(e, true);
+    const onCancel = () => this.finishGripDrag(null, false);
+    const onBlur = () => this.finishGripDrag(null, false);
+
     g.addEventListener('pointerdown', e => {
       e.stopPropagation();
-      this.gripDrag = { grip: which };
+      e.preventDefault();
+      if (this.gripDrag) this.finishGripDrag(null, false);
+      this.gripDrag = { grip: which, last: null };
+      // Must be recorded here, not at grip-creation time: each grip builds its
+      // own closures, and removeEventListener needs these exact references.
+      this.gripListeners = { onMove, onUp, onCancel, onBlur };
       try {
         g.setPointerCapture(e.pointerId);
       } catch {
-        /* resize still tracks while the pointer stays over the grip */
+        /* window-level listeners below carry the drag regardless */
       }
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
+      window.addEventListener('blur', onBlur);
       this.resizePreview.style.display = 'block';
       this.updateResizePreview(e);
     });
-    g.addEventListener('pointermove', e => {
-      if (this.gripDrag) this.updateResizePreview(e);
-    });
-    g.addEventListener('pointerup', e => {
-      if (!this.gripDrag) return;
-      const { w, h } = this.previewSize(e);
-      this.gripDrag = null;
-      this.resizePreview.style.display = 'none';
-      this.delegate.onCanvasResize(w, h);
-    });
     return g;
+  }
+
+  /** End a grip drag. `apply` commits the resize; otherwise it is abandoned. */
+  private finishGripDrag(e: PointerEvent | null, apply: boolean): void {
+    const drag = this.gripDrag;
+    if (!drag) return;
+    const size = e ? this.previewSize(e) : drag.last;
+    this.gripDrag = null;
+    this.resizePreview.style.display = 'none';
+    const l = this.gripListeners;
+    if (l) {
+      window.removeEventListener('pointermove', l.onMove, true);
+      window.removeEventListener('pointerup', l.onUp, true);
+      window.removeEventListener('pointercancel', l.onCancel, true);
+      window.removeEventListener('blur', l.onBlur);
+    }
+    if (apply && size) this.delegate.onCanvasResize(size.w, size.h);
   }
 
   private previewSize(e: PointerEvent): { w: number; h: number } {
@@ -428,6 +476,7 @@ export class CanvasView {
 
   private updateResizePreview(e: PointerEvent): void {
     const { w, h } = this.previewSize(e);
+    if (this.gripDrag) this.gripDrag.last = { w, h };
     this.resizePreview.style.left = `${MARGIN - 1}px`;
     this.resizePreview.style.top = `${MARGIN - 1}px`;
     this.resizePreview.style.width = `${w * this.zoom}px`;

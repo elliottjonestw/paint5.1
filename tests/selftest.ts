@@ -18,6 +18,7 @@ import { CurveTool, LineTool } from '../src/tools/shapes';
 import { PencilTool, EraserTool } from '../src/tools/freehand';
 import { TextTool } from '../src/tools/text';
 import { FontBar } from '../src/ui/fontbar';
+import { CanvasView } from '../src/ui/canvasview';
 import { ToolContext, ToolId, ToolOptions, defaultOptions, PointerInfo } from '../src/tools/tool';
 
 const WHITE = 0xffffffff;
@@ -649,6 +650,133 @@ function makeTestImage(w: number, h: number, paletteSize: number): PixelBuffer {
   for (let i = 3; i < buf.data.length; i += 4) if (buf.data[i] !== 255) opaque = false;
   check('Imported images are flattened to fully opaque pixels', opaque,
     `firstPixel=${u32ToHex(buf.getPixel(0, 0))}`);
+}
+
+/* ---------------- 24. Canvas resize grips ---------------- */
+// A grip is a 5px target and the drag almost always ends somewhere else, so the
+// gesture must survive a pointerup that never reaches the grip element. In this
+// harness setPointerCapture always fails (synthetic pointers are not capturable),
+// which is exactly the condition that used to strand the dotted preview on
+// screen and silently drop the resize.
+
+{
+  const host = document.createElement('div');
+  // Anchored at the viewport origin so client coordinates map straight through,
+  // and large enough that the canvas plus a drag never needs to scroll.
+  host.style.cssText = 'position:fixed;left:0;top:0;width:500px;height:400px;overflow:auto;visibility:hidden';
+  document.body.appendChild(host);
+
+  let buffer = new PixelBuffer(120, 90);
+  const resizeCalls: Array<{ w: number; h: number }> = [];
+  const view = new CanvasView(host, {
+    buffer: () => buffer,
+    floatingRender: () => null,
+    antsShape: () => null,
+    toolOverlay: () => { /* none */ },
+    onPointerDown: () => { /* none */ },
+    onPointerMove: () => { /* none */ },
+    onPointerUp: () => { /* none */ },
+    onPointerHover: () => { /* none */ },
+    onDblClick: () => { /* none */ },
+    onCanvasResize: (w, h) => {
+      resizeCalls.push({ w, h });
+      buffer = PixelBuffer.resized(buffer, w, h);
+      view.layout();
+    },
+  });
+  view.layout();
+
+  const preview = () => host.querySelector<HTMLElement>('#resize-preview')!;
+  const previewShown = () => getComputedStyle(preview()).display !== 'none';
+  const gripAt = (which: string) => {
+    const r = host.querySelector<HTMLElement>(`.grip-${which}`)!.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  };
+  const pev = (type: string, x: number, y: number, buttons = 1) =>
+    new PointerEvent(type, {
+      bubbles: true, clientX: x, clientY: y,
+      button: 0, buttons, pointerId: 1, isPrimary: true,
+    });
+  /** Each case starts from the same canvas so grip coordinates stay predictable. */
+  const reset = () => {
+    buffer = new PixelBuffer(120, 90);
+    host.scrollLeft = 0;
+    host.scrollTop = 0;
+    view.layout();
+    resizeCalls.length = 0;
+  };
+
+  // --- released far from the grip, on the window ---
+  {
+    reset();
+    const g = gripAt('se');
+    host.querySelector('.grip-se')!.dispatchEvent(pev('pointerdown', g.x, g.y));
+    const shownDuring = previewShown();
+    window.dispatchEvent(pev('pointermove', g.x + 90, g.y + 70));
+    window.dispatchEvent(pev('pointerup', g.x + 90, g.y + 70, 0));
+    check('Resize grip: preview appears while dragging', shownDuring);
+    check('Resize grip: pointerup away from the grip still applies the resize',
+      resizeCalls.length === 1 && resizeCalls[0].w > 120 && resizeCalls[0].h > 90,
+      `calls=${JSON.stringify(resizeCalls)}`);
+    check('Resize grip: preview is cleared after the drag', !previewShown());
+  }
+
+  // --- button released outside the window (no pointerup ever arrives) ---
+  {
+    reset();
+    const before = { w: buffer.width, h: buffer.height };
+    const g = gripAt('se');
+    host.querySelector('.grip-se')!.dispatchEvent(pev('pointerdown', g.x, g.y));
+    window.dispatchEvent(pev('pointermove', g.x + 60, g.y + 50));
+    // The pointer returns with the button already up — the only evidence we get.
+    window.dispatchEvent(pev('pointermove', g.x + 70, g.y + 58, 0));
+    check('Resize grip: a lost pointerup still completes the resize',
+      resizeCalls.length === 1 && resizeCalls[0].w > before.w,
+      `calls=${JSON.stringify(resizeCalls)}`);
+    check('Resize grip: preview is never stranded after a lost pointerup',
+      !previewShown());
+  }
+
+  // --- focus lost mid-drag abandons the gesture ---
+  {
+    reset();
+    const g = gripAt('se');
+    host.querySelector('.grip-se')!.dispatchEvent(pev('pointerdown', g.x, g.y));
+    window.dispatchEvent(pev('pointermove', g.x + 80, g.y + 60));
+    window.dispatchEvent(new Event('blur'));
+    check('Resize grip: losing focus mid-drag abandons the resize',
+      resizeCalls.length === 0, `calls=${JSON.stringify(resizeCalls)}`);
+    check('Resize grip: preview is cleared when focus is lost', !previewShown());
+  }
+
+  // --- the single-axis grips ---
+  {
+    reset();
+    const before = { w: buffer.width, h: buffer.height };
+    const ge = gripAt('e');
+    host.querySelector('.grip-e')!.dispatchEvent(pev('pointerdown', ge.x, ge.y));
+    window.dispatchEvent(pev('pointermove', ge.x + 50, ge.y + 40));
+    window.dispatchEvent(pev('pointerup', ge.x + 50, ge.y + 40, 0));
+    const eCalls = JSON.stringify(resizeCalls);
+    const eOk = resizeCalls.length === 1 &&
+      resizeCalls[0].w > before.w && resizeCalls[0].h === before.h;
+
+    reset();
+    const gs = gripAt('s');
+    host.querySelector('.grip-s')!.dispatchEvent(pev('pointerdown', gs.x, gs.y));
+    window.dispatchEvent(pev('pointermove', gs.x + 50, gs.y + 40));
+    window.dispatchEvent(pev('pointerup', gs.x + 50, gs.y + 40, 0));
+    const sCalls = JSON.stringify(resizeCalls);
+    const sOk = resizeCalls.length === 1 &&
+      resizeCalls[0].h > before.h && resizeCalls[0].w === before.w;
+
+    check('Resize grip: east grip changes width only', eOk,
+      `before=${JSON.stringify(before)} calls=${eCalls}`);
+    check('Resize grip: south grip changes height only', sOk,
+      `before=${JSON.stringify(before)} calls=${sCalls}`);
+  }
+
+  host.remove();
 }
 
 /* ---------------- sample files for external-viewer checks ---------------- */
