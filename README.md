@@ -1,6 +1,4 @@
-<div align="center">
-
-# Paint 5.1
+# A Faithful Remake of Paint 5.1 for Modern Systems
 
 **Microsoft Paint, as it shipped in Windows XP — rebuilt from scratch, running natively on macOS and Windows.**
 
@@ -12,8 +10,6 @@ behavior, its limitations, and its quirks — down to the three-level undo.
 *No install, no sign-in — the full editor, not a demo.*
 
 ![Paint 5.1 running on macOS](docs/screenshot.png)
-
-</div>
 
 ---
 
