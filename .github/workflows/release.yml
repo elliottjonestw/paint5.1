@@ -1,0 +1,90 @@
+name: Build Desktop Apps
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (e.g. 5.2.0) — used in the tag, release name, and file names"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set version
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+
+      - run: npm run build
+
+      - run: npx electron-builder --mac
+
+      # electron-builder's mac target is "dir" (unpacked .app), so zip it ourselves.
+      # ditto preserves the bundle structure/resource forks the way macOS expects.
+      - name: Zip app bundle
+        run: |
+          cd dist_electron/mac-arm64
+          ditto -c -k --sequesterRsrc --keepParent Paint.app "../Paint-${{ inputs.version }}-mac.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-build
+          path: dist_electron/Paint-${{ inputs.version }}-mac.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set version
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+
+      - run: npm run build
+
+      - run: npx electron-builder --win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            dist_electron/Paint-Setup-${{ inputs.version }}.exe
+            dist_electron/Paint-${{ inputs.version }}-win.zip
+
+  release:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          draft: true
+          files: |
+            artifacts/mac-build/*
+            artifacts/windows-build/*
