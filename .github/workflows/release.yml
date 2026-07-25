@@ -50,6 +50,17 @@ jobs:
 
       - run: npx electron-builder --mac --publish never
 
+      # "identity": null tells electron-builder to skip signing, which leaves the
+      # bundle with no _CodeSignature seal — electron-builder renamed the binary and
+      # rewrote Info.plist, so Electron's own linker signature no longer covers it.
+      # Gatekeeper rejects that outright once the download is quarantined ("Paint is
+      # damaged and can't be opened"). An ad-hoc signature makes the bundle valid.
+      - name: Ad-hoc code sign
+        run: |
+          cd dist_electron/mac-arm64
+          codesign --force --deep --sign - Paint.app
+          codesign --verify --deep --strict --verbose=2 Paint.app
+
       # electron-builder's mac target is "dir" (unpacked .app), so zip it ourselves.
       # ditto preserves the bundle structure/resource forks the way macOS expects.
       - name: Zip app bundle
