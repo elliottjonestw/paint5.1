@@ -12,8 +12,27 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.normalize.outputs.version }}
+    steps:
+      # npm version requires strict x.y.z semver; pad whatever the user typed
+      # ("1.0" / "v5" / "5.2") out to that shape.
+      - name: Normalize version
+        id: normalize
+        run: |
+          version="${{ inputs.version }}"
+          version="${version#v}"
+          IFS='.' read -r major minor patch _ <<< "$version"
+          version="${major:-0}.${minor:-0}.${patch:-0}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   mac:
+    needs: prepare
     runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,7 +44,7 @@ jobs:
       - run: npm ci
 
       - name: Set version
-        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - run: npm run build
 
@@ -36,15 +55,18 @@ jobs:
       - name: Zip app bundle
         run: |
           cd dist_electron/mac-arm64
-          ditto -c -k --sequesterRsrc --keepParent Paint.app "../Paint-${{ inputs.version }}-mac.zip"
+          ditto -c -k --sequesterRsrc --keepParent Paint.app "../Paint-$VERSION-mac.zip"
 
       - uses: actions/upload-artifact@v4
         with:
           name: mac-build
-          path: dist_electron/Paint-${{ inputs.version }}-mac.zip
+          path: dist_electron/Paint-${{ needs.prepare.outputs.version }}-mac.zip
 
   windows:
+    needs: prepare
     runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +78,7 @@ jobs:
       - run: npm ci
 
       - name: Set version
-        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+        run: npm version "$env:VERSION" --no-git-tag-version --allow-same-version
 
       - run: npm run build
 
@@ -66,11 +88,11 @@ jobs:
         with:
           name: windows-build
           path: |
-            dist_electron/Paint-Setup-${{ inputs.version }}.exe
-            dist_electron/Paint-${{ inputs.version }}-win.zip
+            dist_electron/Paint-Setup-${{ needs.prepare.outputs.version }}.exe
+            dist_electron/Paint-${{ needs.prepare.outputs.version }}-win.zip
 
   release:
-    needs: [mac, windows]
+    needs: [prepare, mac, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -82,8 +104,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
+          tag_name: v${{ needs.prepare.outputs.version }}
+          name: v${{ needs.prepare.outputs.version }}
           draft: true
           files: |
             artifacts/mac-build/*
