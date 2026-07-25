@@ -3,7 +3,7 @@
 **Microsoft Paint, as it shipped in Windows XP — rebuilt from scratch, running natively on macOS and Windows.**
 
 Not a theme. Not a tribute. A reimplementation that reproduces the original's
-behavior, its limitations, and its quirks — down to the three-level undo.
+behavior, its limitations, and its quirks.
 
 ### [▶ Open it in your browser](https://elliottjonestw.github.io/paint5.1/)
 
