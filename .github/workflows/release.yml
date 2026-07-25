@@ -48,7 +48,7 @@ jobs:
 
       - run: npm run build
 
-      - run: npx electron-builder --mac
+      - run: npx electron-builder --mac --publish never
 
       # electron-builder's mac target is "dir" (unpacked .app), so zip it ourselves.
       # ditto preserves the bundle structure/resource forks the way macOS expects.
@@ -82,7 +82,7 @@ jobs:
 
       - run: npm run build
 
-      - run: npx electron-builder --win
+      - run: npx electron-builder --win --publish never
 
       - uses: actions/upload-artifact@v4
         with:
