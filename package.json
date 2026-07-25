@@ -1,0 +1,57 @@
+{
+  "name": "xp-paint",
+  "productName": "Paint",
+  "version": "5.1.0",
+  "description": "A faithful recreation of Windows XP Paint (5.1) for macOS and Windows",
+  "author": "xp-paint",
+  "private": true,
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "dev": "node esbuild.mjs --serve",
+    "start": "node esbuild.mjs && electron .",
+    "dist": "node esbuild.mjs && electron-builder --mac",
+    "dist:mac": "node esbuild.mjs && electron-builder --mac",
+    "dist:win": "node esbuild.mjs && electron-builder --win",
+    "dist:all": "node esbuild.mjs && electron-builder --mac --win",
+    "typecheck": "tsc --noEmit",
+    "samples": "esbuild tests/makesamples.ts --bundle --outfile=dist/makesamples.cjs --format=cjs --platform=node --target=node20 && node dist/makesamples.cjs /tmp/paint-samples"
+  },
+  "devDependencies": {
+    "electron": "^36.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0"
+  },
+  "build": {
+    "appId": "local.xp-paint",
+    "productName": "Paint",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "dist/renderer.js",
+      "dist/main.cjs",
+      "dist/preload.cjs",
+      "index.html",
+      "styles.css"
+    ],
+    "mac": {
+      "target": "dir",
+      "identity": null,
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "zip", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Paint",
+      "artifactName": "Paint-Setup-${version}.${ext}"
+    }
+  }
+}
