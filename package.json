@@ -8,6 +8,7 @@
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node esbuild.mjs",
+    "icons": "node tools/make-icons.mjs",
     "build:site": "node esbuild.mjs --site",
     "dev": "node esbuild.mjs --serve",
     "start": "node esbuild.mjs && electron .",
@@ -34,14 +35,18 @@
       "dist/main.cjs",
       "dist/preload.cjs",
       "index.html",
-      "styles.css"
+      "styles.css",
+      "manifest.webmanifest",
+      "assets/web/**"
     ],
     "mac": {
       "target": "dir",
       "identity": null,
+      "icon": "assets/icon.icns",
       "category": "public.app-category.graphics-design"
     },
     "win": {
+      "icon": "assets/icon.ico",
       "target": [
         { "target": "nsis", "arch": ["x64"] },
         { "target": "zip", "arch": ["x64"] }
@@ -52,7 +57,9 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "Paint",
-      "artifactName": "Paint-Setup-${version}.${ext}"
+      "artifactName": "Paint-Setup-${version}.${ext}",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
     }
   }
 }

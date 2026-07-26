@@ -66,6 +66,9 @@ if (serve) {
   // same tree works at a domain root or under a /<repo>/ project path.
   await cp('index.html', `${SITE_DIR}/index.html`);
   await cp('styles.css', `${SITE_DIR}/styles.css`);
+  // Favicons, apple-touch-icon and the PWA install icons.
+  await cp('assets/web', `${SITE_DIR}/assets/web`, { recursive: true });
+  await cp('manifest.webmanifest', `${SITE_DIR}/manifest.webmanifest`);
   // Keeps Pages from treating dist/ and friends as Jekyll input.
   await writeFile(`${SITE_DIR}/.nojekyll`, '');
   console.log(`\n  Static site written to ${SITE_DIR}/\n`);

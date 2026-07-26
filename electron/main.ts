@@ -41,6 +41,9 @@ function createWindow(): void {
     title: 'untitled - Paint',
     titleBarStyle: 'default',
     backgroundColor: '#ECE9D8',
+    // macOS reads the icon from the .app bundle; Windows and Linux need it set
+    // here to get the right one when running unpackaged (`npm start`).
+    ...(isMac ? {} : { icon: path.join(__dirname, '..', 'assets', 'web', 'icon-512.png') }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

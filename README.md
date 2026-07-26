@@ -133,6 +133,25 @@ launch:
 To build for 32-bit Windows or ARM64, add the arch to the `win.target` entry in
 `package.json`; x64 is the default.
 
+### The app icon
+
+The icon — a tumbler of brushes and a pencil, in XP's soft-shaded Luna style — is
+drawn in code and generated into every format the project ships:
+
+```bash
+npm run icons
+```
+
+`tools/icon-art.mjs` holds the drawing, `tools/raster.mjs` is a small
+anti-aliasing rasteriser, and `tools/encode.mjs` writes PNG, ICO and ICNS using
+nothing but Node's built-in `zlib`. No native image tooling and no third-party
+dependency is involved, so the icons rebuild identically on any machine.
+
+Every size is rasterised natively rather than downscaled from one master bitmap,
+and line weights stop thinning once they reach a device pixel, which is what
+keeps the 16px favicon readable. Outputs land in `assets/` and are committed, so
+packaging never depends on running the generator.
+
 ### Publish it to GitHub Pages
 
 ```bash
@@ -429,6 +448,9 @@ ImageIO, at the right dimensions and orientation.
 | `src/io/gif.ts` | Pure-JS GIF codec (LZW + median-cut quantizer) |
 | `src/platform/` | Electron bridge detection, and the touch scale (`uiscale.ts`) |
 | `electron/` | Main process and preload — window, native panels, clipboard, menu, print |
+| `tools/` | Icon generator — the drawing, a small rasteriser, PNG/ICO/ICNS encoders |
+| `assets/` | Generated icons: `icon.icns`, `icon.ico`, and `web/` for favicons and PWA |
+| `manifest.webmanifest` | PWA metadata — name, colours, install icons |
 | `tests/` | Self-test harness and sample-file generator |
 | `esbuild.mjs` | The whole build: renderer, Electron main/preload, dev server, `--site` |
 | `.github/workflows/pages.yml` | Builds `site/` and deploys it to GitHub Pages on push to `main` |
@@ -442,6 +464,7 @@ where a virtual DOM buys nothing and gets in the way of exact layout.
 
 Not affiliated with, endorsed by, or derived from Microsoft. No Microsoft binaries,
 icon resources, or fonts are extracted, embedded, or redistributed — every icon, cursor,
-and palette is recreated from scratch as original pixel art. "Microsoft Paint" and
+and palette is recreated from scratch, as original pixel art in the app and as an
+original coded drawing for the app icon. "Microsoft Paint" and
 "Windows XP" are trademarks of Microsoft Corporation, used here only to describe what
 this project reproduces.
